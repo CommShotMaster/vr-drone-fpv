@@ -33,8 +33,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
 renderer.xr.setReferenceSpaceType('local');
-renderer.xr.setFoveation(1);
-try { renderer.xr.setFramebufferScaleFactor(0.9); } catch (e) {} // head starts at origin => eyes sit at the drone camera
+// head starts at origin => eyes sit at the drone camera
 document.body.appendChild(renderer.domElement);
 document.body.appendChild(VRButton.createButton(renderer));
 
@@ -138,7 +137,9 @@ camera.add(hud);
 const fade = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
 fade.renderOrder = 1000; fade.position.z = -0.2; fade.frustumCulled = false; fade.visible = false;
 camera.add(fade);
-let blink = 0; // desktop: sticks to camera. In VR it is re-parented to rig below.
+let blink = 0, lastErr = '';
+addEventListener('error', e => { lastErr = String(e.message || e).slice(0, 70); });
+addEventListener('unhandledrejection', e => { lastErr = String(e.reason).slice(0, 70); }); // desktop: sticks to camera. In VR it is re-parented to rig below.
 
 // ---------- drone state ----------
 const G = 9.81, MAX_TILT = THREE.MathUtils.degToRad(52), YAW_RATE = 2.2, DRAG = 0.45, CAM_UPTILT = THREE.MathUtils.degToRad(22);
@@ -318,7 +319,7 @@ function drawHud() {
   ctx.fillText(`${spd} km/h   ALT ${drone.pos.y.toFixed(0)}m`, 18, 136);
   ctx.font = '22px monospace'; ctx.fillStyle = '#cfe3ff';
   const d = finished ? '' : `next: ${drone.pos.distanceTo(rings[nextRing].pos).toFixed(0)}m`;
-  ctx.fillText(finished ? 'A / R to restart' : `${d}   penalty +${penalty}s`, 18, 176);
+  ctx.fillText(lastErr ? 'ERR ' + lastErr : finished ? 'A / R to restart' : `${d}   penalty +${penalty}s`, 18, 176);
   hudTex.needsUpdate = true;
 }
 
@@ -334,7 +335,7 @@ renderer.setAnimationLoop(() => {
   step(dt, inp);
   applyToRig(renderer.xr.isPresenting);
   blink = Math.max(0, blink - dt);
-  const fa = Math.max(crashFlash / 0.6 * 0.85, blink / 0.12 * 0.9);
+  const fa = Math.min(0.6, Math.max(crashFlash / 0.6 * 0.6, blink / 0.12 * 0.6));
   fade.visible = fa > 0.01; fade.material.opacity = fa; fade.material.color.set(crashFlash > 0 ? 0x550000 : 0x000000);
   sfx.update(inp.thr, drone.vel.length());
   if ((hudTimer -= dt) <= 0) { drawHud(); hudTimer = 0.1; }
